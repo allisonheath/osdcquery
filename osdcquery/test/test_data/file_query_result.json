@@ -1,0 +1,154 @@
+{
+  "took" : 23,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 3815,
+    "max_score" : 3.1671777,
+    "hits" : [ {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "7362f172-7d53-404f-bf14-d62365949612",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "7943543155",
+          "filename" : "UNCID_1155622.1edf44b5-61ba-47cd-81ed-b586ae81cb32.sorted_genome_alignments.bam",
+          "checksum" : "08397d3abb6118b0e289ca45819b3b22"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "a1108e7d-6fa8-4388-b5d3-addd869f01cd"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "f74034c8-b152-4eb9-88da-058a8d925c2a",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "155324165",
+          "filename" : "TCGA-BH-A0DI-01A-21R-A12O-13_mirna.bam",
+          "checksum" : "1ceee2c66dfa0580638c46cbbc355a23"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "b0f0c3bf-5982-4a1f-9f04-14a4f3bf4038"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "fdbece85-62eb-4eb4-8aea-4644fa9b4b6c",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "7807150808",
+          "filename" : "TCGA-D8-A147-01A-11D-A10Y-09_IlluminaGA-DNASeq_exome.bam",
+          "checksum" : "4ab1522124ef00642a4d17c2744c543f"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "fc1956a9-7a6d-4070-884f-bdefab5b858e"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "8c50e9f9-3d25-4381-bd0d-8127d7d9714d",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "100685985",
+          "filename" : "TCGA-E2-A15E-06A-11R-A12C-13_mirna.bam",
+          "checksum" : "e1f7f7242e53374e6eea78060e1ed7ef"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "7ae5dd50-3b1c-4bfe-8315-80449f8f4bed"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "b59a4d9b-0a74-4e98-8b09-f77c88f4d4c5",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "7004050693",
+          "filename" : "UNCID_1126824.1fa9c013-4d2c-4f3e-8e77-6437dad440c9.sorted_genome_alignments.bam",
+          "checksum" : "b092e3ed70f2d611a3566bae816fb951"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "cb2e3b45-cac5-40fc-8394-e1203220ed75"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "b18d789a-cdc0-4fae-b898-96fba1928500",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "125490638",
+          "filename" : "TCGA-AO-A1KO-01A-31R-A13P-13_mirna.bam",
+          "checksum" : "adf0e2f9ed4798aec732a73b79f38c19"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "969679dc-99d3-4449-977d-a5edb955293a"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "7b48d7ac-e4b7-4015-a745-eda5f6852a4e",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "4812864981",
+          "filename" : "UNCID_1286676.204a78d9-67aa-4e49-b285-bbb25c6ed142.sorted_genome_alignments.bam",
+          "checksum" : "9ffacad32167d707c35e7e2ef0edfbf8"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "df64fbe7-7327-417c-ba71-9bda7bd25687"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "85353dd2-bc9a-4e20-829d-1c1992a19a2a",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "13904387328",
+          "filename" : "17c1e91ffa967665027e064f0dab1a8e.bam",
+          "checksum" : "17c1e91ffa967665027e064f0dab1a8e"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "1c3a2284-9e1b-413e-893c-2b4bf4b19633"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "27599726-a333-4c22-86e8-eb0875dc05c4",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "12531757692",
+          "filename" : "TCGA-A1-A0SM-01A-11D-A099-09_IlluminaGA-DNASeq_exome_2.bam",
+          "checksum" : "beccc15ff8f039c60074916d5892bd08"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "0ed181bf-fb4b-4b43-8c1a-ea43a96fd8c9"
+      }
+    }, {
+      "_index" : "cghub",
+      "_type" : "analysis",
+      "_id" : "9f1943d0-3de2-4e33-8cdc-f7b2c8793b06",
+      "_score" : 3.1671777,
+      "fields" : {
+        "files" : [ {
+          "filesize" : "70811998",
+          "filename" : "TCGA-EW-A1PE-01A-11R-A143-13_mirna.bam",
+          "checksum" : "98e04c1c466f57c626ccba3982593754"
+        } ],
+        "disease_abbr" : "BRCA",
+        "analysis_id" : "73141320-3815-44c7-b95e-5728f0367a64"
+      }
+    } ]
+  }
+}
