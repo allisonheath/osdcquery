@@ -20,7 +20,8 @@ def get_class(module_name, class_name):
 def main():
     '''Runs query and builds symlinks '''
 
-    usage = " ( python -m osdcquery.osdcquery |  %prog ) [options] arg"
+    usage = "( python -m osdcquery.osdcquery | %prog ) [options] query_name \
+url query_string"
 
     parser = OptionParser(usage=usage)
     parser.add_option("-t", "--target_dir", dest="target_dir",
