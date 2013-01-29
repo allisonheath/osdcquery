@@ -33,6 +33,9 @@ def main():
         help="config module to use standard is osdcquery.config.Tcga",
         default="osdcquery.config.Tcga")
 
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
+        help="display messages to standard out", default=False)
+
     (options, args) = parser.parse_args()
 
     settings = importlib.import_module(options.config)
@@ -66,9 +69,15 @@ def main():
 
     new_dir = os.path.join(link_dir, query_name)
 
+    if options.verbose:
+        print "Making directory %s" % new_dir
+
     fs_handler.mkdir(new_dir)
+
     links = builder.associate(query.run_query(query_string))
     for link, target in links.items():
+        if options.verbose:
+            print "Creating link %s to target %s" % (link, target)
         fs_handler.symlink(target, link)
 
 if __name__ == "__main__":
