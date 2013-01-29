@@ -23,10 +23,10 @@ def main():
     usage = " ( python -m osdcquery.osdcquery |  %prog ) [options] arg"
 
     parser = OptionParser(usage=usage)
-    parser.add_option("-t", "--target", dest="target",
+    parser.add_option("-t", "--target_dir", dest="target_dir",
         help="target directory (where the original files are located)")
 
-    parser.add_option("-l", "--link", dest="link",
+    parser.add_option("-l", "--link_dir", dest="link_dir",
         help="link directory (where to put the generated symlinks)")
 
     parser.add_option("-c", "--config", dest="config",
@@ -36,6 +36,11 @@ def main():
     (options, args) = parser.parse_args()
 
     settings = importlib.import_module(options.config)
+
+    target_dir = options.target_dir if options.target_dir else \
+        settings.target_dir
+
+    link_dir = options.link_dir if options.link_dir else settings.link_dir
 
     if len(args) != 3:
         parser.error("incorrect number of arguments")
@@ -52,15 +57,14 @@ def main():
     dirbuild_class = get_class(settings.dirbuild_module_name,
         settings.dirbuild_class_name)
 
-    builder = dirbuild_class(settings.target_dir, os.path.join(
-        settings.link_dir, query_name))
+    builder = dirbuild_class(target_dir, os.path.join(link_dir, query_name))
 
     fs_handler_class = get_class(settings.fs_handler_module_name,
         settings.fs_handler_class_name)
 
     fs_handler = fs_handler_class()
 
-    new_dir = os.path.join(settings.link_dir, query_name)
+    new_dir = os.path.join(link_dir, query_name)
 
     fs_handler.mkdir(new_dir)
     links = builder.associate(query.run_query(query_string))
