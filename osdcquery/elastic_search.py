@@ -17,10 +17,10 @@ class EsQuery(object):
 
         self.logger = logging.getLogger('osdcquery')
         self.logger.debug("Logger in elastic_search")
-        
+
         self.url = url
-        
-        #going to assume everything up to the first slash in the url is the 
+
+        #going to assume everything up to the first slash in the url is the
         #host (no non-root urls, not sure if this is a problem?)
         #might want to separate out the host and index into two arguments?
         url_re = '(?P<host>(http.*://)?[^:/ ]+:[0-9]*).*'
@@ -36,7 +36,7 @@ class EsQuery(object):
             "fields": self.fields,
             "query": {
                 "query_string": {
-                     # "disease_abbr:OV AND center_name:BCM"                                                                                                                                                                    
+                     # "disease_abbr:OV AND center_name:BCM"
                      "query": query_string
                 }
             }
@@ -45,13 +45,12 @@ class EsQuery(object):
 
     def run_query(self, query_string, size=10, timeout='1m'):
         ''' public facing function...polymorphism '''
-	return self._run_scroll_query(query_string, size, timeout)
-
+        return self._run_scroll_query(query_string, size, timeout)
 
     def _run_scroll_query(self, query_string, size=10, timeout='1m'):
-        ''' The suggested way by elasticsearch to get large results 
+        ''' The suggested way by elasticsearch to get large results
         is to use the scroll functionality, this will scroll until the end.
-        Note that with scan the actual number of results returned is the 
+        Note that with scan the actual number of results returned is the
         size times the number of shards.
         '''
         req_url = ''.join([self.url, '?search_type=scan&scroll=', timeout,
@@ -70,27 +69,27 @@ class EsQuery(object):
 
         if total_hits == 0:
             return full_results
-        
+
         #Because it makes me feel better, going to limit this loop to the
-        #number of total hits, but I think the theoretical max is 
+        #number of total hits, but I think the theoretical max is
         #total_hits / size
         iter_max = total_hits
         iter_curr = 0
         while True:
             req = urllib2.Request(''.join([self.host, '_search/scroll?scroll=',
-                timeout]), scroll_id)  
+                timeout]), scroll_id)
             response = urllib2.urlopen(req)
             result = response.read()
             result_json = json.loads(result)
 
             self.logger.debug(result_json)
-            
+
             num_hits = len(result_json['hits']['hits'])
             if num_hits == 0:
                 break
 
             scroll_id = result_json['_scroll_id']
-                        
+
             if 'hits' in result_json and 'hits' in result_json['hits']:
                 full_results.extend([{field: file_info['fields'][field]
                          for field in self.fields}
@@ -100,7 +99,8 @@ class EsQuery(object):
             if iter_curr > iter_max:
                 break
 
-        #may want to check the num of results returning versus the reported total
+        #may want to check the num of results returning versus the reported
+        #total
         return full_results
 
     def _run_flat_query(self, query_string, size=10):
@@ -114,7 +114,7 @@ class EsQuery(object):
 
         #curl localhost:9200/cghub/analysis/_search -d \
         # @es_queries/query_string.json
-        req = urllib2.Request(''.join([self.url, '?size=%d' % size]), 
+        req = urllib2.Request(''.join([self.url, '?size=%d' % size]),
             self.get_json_query(query_string))
 
         response = urllib2.urlopen(req)

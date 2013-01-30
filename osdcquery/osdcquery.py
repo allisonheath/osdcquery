@@ -86,11 +86,11 @@ url query_string"
     fs_handler = fs_handler_class()
 
     new_dir = os.path.join(link_dir, query_name)
-   
+
     if fs_handler.exists(new_dir):
-       error_message = 'Directory "%s" already exists' % new_dir
-       logger.error(error_message)
-       exit(1)
+        error_message = 'Directory "%s" already exists' % new_dir
+        logger.error(error_message)
+        exit(1)
 
     logger.info("Making directory %s" % new_dir)
 
@@ -101,7 +101,7 @@ url query_string"
     if len(query_results) < 1:
         print "Query returned 0 results"
         exit(0)
-    
+
     links = builder.associate(query_results)
 
     if len(links) < 1:
