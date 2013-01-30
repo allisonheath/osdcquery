@@ -1,10 +1,11 @@
 #!/usr/bin/python
 
-''' Query object for Elastic Search queries '''
+''' Query object for Elastic Search queries.  Implements interface run_query'''
 
-import urllib2
 import json
+import logging
 import re
+import urllib2
 
 
 class EsQuery(object):
@@ -13,10 +14,14 @@ class EsQuery(object):
     def __init__(self, url, fields):
         ''' Takes the url of the elasticquery service e.g:
         localhost:9200/cghub/analysis/_search'''
+
+        self.logger = logging.getLogger('osdcquery')
+        self.logger.debug("Logger in elastic_search")
         
         self.url = url
         
-        #going to assume everything up to the first slash in the url is the host (no non-root urls, not sure if this is a problem?)
+        #going to assume everything up to the first slash in the url is the 
+        #host (no non-root urls, not sure if this is a problem?)
         #might want to separate out the host and index into two arguments?
         url_re = '(?P<host>(http.*://)?[^:/ ]+:[0-9]*).*'
         m = re.search(url_re, url)
@@ -38,16 +43,25 @@ class EsQuery(object):
         })
         return json_data
 
-    def run_scroll_query(self, query_string, size='10', timeout='1m'):
+    def run_query(self, query_string, size=10, timeout='1m'):
+        ''' public facing function...polymorphism '''
+	return self._run_scroll_query(query_string, size, timeout)
+
+
+    def _run_scroll_query(self, query_string, size=10, timeout='1m'):
         ''' The suggested way by elasticsearch to get large results 
         is to use the scroll functionality, this will scroll until the end.
         Note that with scan the actual number of results returned is the 
         size times the number of shards.
         '''
-        req_url = ''.join([self.url, '?search_type=scan&scroll=', timeout, '&size=', size])
+        req_url = ''.join([self.url, '?search_type=scan&scroll=', timeout,
+            '&size=%d' % size])
         req = urllib2.Request(req_url, self.get_json_query(query_string))
         response = urllib2.urlopen(req)
         result = response.read()
+
+        self.logger.debug("Initial response %s", result)
+
         scroll_response = json.loads(result)
         scroll_id = scroll_response['_scroll_id']
         total_hits = scroll_response['hits']['total']
@@ -57,14 +71,19 @@ class EsQuery(object):
         if total_hits == 0:
             return full_results
         
-        #Because it makes me feel better, going to limit this loop to the number of total hits, but I think the theoretical max is total_hits / size
+        #Because it makes me feel better, going to limit this loop to the
+        #number of total hits, but I think the theoretical max is 
+        #total_hits / size
         iter_max = total_hits
         iter_curr = 0
         while True:
-            req = urllib2.Request(''.join([self.host, '_search/scroll?scroll=', timeout]), scroll_id)  
+            req = urllib2.Request(''.join([self.host, '_search/scroll?scroll=',
+                timeout]), scroll_id)  
             response = urllib2.urlopen(req)
             result = response.read()
             result_json = json.loads(result)
+
+            self.logger.debug(result_json)
             
             num_hits = len(result_json['hits']['hits'])
             if num_hits == 0:
@@ -84,7 +103,7 @@ class EsQuery(object):
         #may want to check the num of results returning versus the reported total
         return full_results
 
-    def run_query(self, query_string, size='10'):
+    def _run_flat_query(self, query_string, size=10):
         ''' There is no clear set of parameters or options for the
         query as it is updated when the metadata is consumed and sent
         to a database of values.  We will asssume all errors are handled
@@ -95,7 +114,9 @@ class EsQuery(object):
 
         #curl localhost:9200/cghub/analysis/_search -d \
         # @es_queries/query_string.json
-        req = urllib2.Request(''.join([self.url, '?size=', size]), self.get_json_query(query_string))
+        req = urllib2.Request(''.join([self.url, '?size=%d' % size]), 
+            self.get_json_query(query_string))
+
         response = urllib2.urlopen(req)
         result = response.read()
 

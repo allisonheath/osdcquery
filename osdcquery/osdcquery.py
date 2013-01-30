@@ -5,6 +5,8 @@
 '''Runs query and builds symlinks '''
 
 import importlib
+import logging
+import logging.handlers
 import os
 
 from optparse import OptionParser
@@ -37,7 +39,19 @@ url query_string"
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
         help="display messages to standard out", default=False)
 
+    parser.add_option("-d", "--log", dest="loglevel",
+        help="python log level DEBUG, INFO ...", default=logging.ERROR)
+
     (options, args) = parser.parse_args()
+
+    numeric_level = getattr(logging, options.loglevel.upper(), None)
+
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % loglevel)
+
+    logger = logging.getLogger('osdcquery')
+    logger.setLevel(numeric_level)
+    logger.addHandler(logging.StreamHandler())
 
     settings = importlib.import_module(options.config)
 
@@ -73,7 +87,11 @@ url query_string"
     if options.verbose:
         print "Making directory %s" % new_dir
 
-    links = builder.associate(query.run_scroll_query(query_string))
+    query_results = query.run_query(query_string)
+
+    logger.debug(query_results)
+    
+    links = builder.associate(query_results)
 
     fs_handler.mkdir(new_dir)
 
