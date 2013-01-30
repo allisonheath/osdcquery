@@ -40,7 +40,7 @@ url query_string"
         help="display messages to standard out", default=False)
 
     parser.add_option("-d", "--log", dest="loglevel",
-        help="python log level DEBUG, INFO ...", default=logging.ERROR)
+        help="python log level DEBUG, INFO ...", default="ERROR")
 
     (options, args) = parser.parse_args()
 
@@ -48,6 +48,9 @@ url query_string"
 
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % loglevel)
+
+    if options.verbose and numeric_level > logging.INFO:
+        numeric_level = logging.INFO
 
     logger = logging.getLogger('osdcquery')
     logger.setLevel(numeric_level)
@@ -83,21 +86,32 @@ url query_string"
     fs_handler = fs_handler_class()
 
     new_dir = os.path.join(link_dir, query_name)
+   
+    if fs_handler.exists(new_dir):
+       error_message = 'Directory "%s" already exists' % new_dir
+       logger.error(error_message)
+       exit(1)
 
-    if options.verbose:
-        print "Making directory %s" % new_dir
+    logger.info("Making directory %s" % new_dir)
 
     query_results = query.run_query(query_string)
 
     logger.debug(query_results)
+
+    if len(query_results) < 1:
+        print "Query returned 0 results"
+        exit(0)
     
     links = builder.associate(query_results)
+
+    if len(links) < 1:
+        print "No links to be created"
+        exit(0)
 
     fs_handler.mkdir(new_dir)
 
     for link, target in links.items():
-        if options.verbose:
-            print "Creating link %s to target %s" % (link, target)
+        logger.info("Creating link %s to target %s" % (link, target))
         fs_handler.symlink(target, link)
 
 if __name__ == "__main__":

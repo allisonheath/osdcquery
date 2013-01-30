@@ -20,11 +20,12 @@ class TcgaDirBuild(object):
         ''' Create files using the metadata dictionary.'''
 
         return {
-            os.path.join(self.new_dir,  entry['files'][0]['filename']):
+            #os.path.join(self.new_dir,  entry['files'][0]['filename']):
+            os.path.join(self.new_dir,  entry['analysis_id']):
             os.path.join(self.old_dir,
                 entry['disease_abbr'],
-                entry['analysis_id'],
-                entry['files'][0]['filename']
+                entry['analysis_id']#,
+                #entry['files'][0]['filename']
             )
             for entry in metadata
         }
