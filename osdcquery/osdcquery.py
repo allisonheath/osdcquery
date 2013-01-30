@@ -40,7 +40,7 @@ url query_string"
         help="display messages to standard out", default=False)
 
     parser.add_option("-d", "--log", dest="loglevel",
-        help="python log level DEBUG, INFO ...", default=logging.ERROR)
+        help="python log level DEBUG, INFO ...", default="ERROR")
 
     (options, args) = parser.parse_args()
 
