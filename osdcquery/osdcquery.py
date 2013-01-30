@@ -73,9 +73,10 @@ url query_string"
     if options.verbose:
         print "Making directory %s" % new_dir
 
+    links = builder.associate(query.run_scroll_query(query_string))
+
     fs_handler.mkdir(new_dir)
 
-    links = builder.associate(query.run_query(query_string))
     for link, target in links.items():
         if options.verbose:
             print "Creating link %s to target %s" % (link, target)
