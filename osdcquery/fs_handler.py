@@ -20,3 +20,7 @@ class UnixFsHandler(object):
     def mkdir(self, name):
         ''' Wrapper for os.makedirs want to have mkdir -p'''
         os.makedirs(name)
+
+    def exists(self, path):
+        ''' Wrapper for os.path.exists'''
+        return os.path.exists(path)
