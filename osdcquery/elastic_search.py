@@ -23,7 +23,7 @@ class EsQuery(object):
         #going to assume everything up to the first slash in the url is the
         #host (no non-root urls, not sure if this is a problem?)
         #might want to separate out the host and index into two arguments?
-        url_re = '(?P<host>(http.*://)?[^:/ ]+:[0-9]*).*'
+        url_re = '(?P<host>(http.*://)?[^:/ ]+(:[0-9]+)?).*'
         m = re.search(url_re, url)
         self.host = ''.join([m.group('host'), '/'])
 
