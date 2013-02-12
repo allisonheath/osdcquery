@@ -7,6 +7,7 @@ that will have symlink be a wrapper for Win32file.CreateSymbolicLink
 '''
 
 import os
+import os.path
 
 
 class UnixFsHandler(object):
@@ -24,3 +25,16 @@ class UnixFsHandler(object):
     def exists(self, path):
         ''' Wrapper for os.path.exists'''
         return os.path.exists(path)
+
+    def write_manifest(self, path, manifest):
+        ''' Write .info file in path consisting of string manifest'''
+        f = open(os.path.join(path, ".info"), 'w')
+        f.write(manifest)
+        f.close()
+
+    def read_manifest(self, path):
+        ''' read and return .info from path'''
+        f = open(os.path.join(path, ".info"))
+        manifest = f.read()
+        f.close()
+        return manifest
