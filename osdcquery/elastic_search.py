@@ -18,7 +18,7 @@ class EsQuery(object):
         self.logger = logging.getLogger('osdcquery')
         self.logger.debug("Logger in elastic_search")
 
-        self.url = url
+	self.url = "".join([url.rstrip('/'), '/'])
 
         #going to assume everything up to the first slash in the url is the
         #host (no non-root urls, not sure if this is a problem?)
@@ -26,6 +26,7 @@ class EsQuery(object):
         url_re = '(?P<host>(http.*://)?[^:/ ]+(:[0-9]+)?).*'
         m = re.search(url_re, url)
         self.host = ''.join([m.group('host'), '/'])
+        self.logger.debug(self.host)
 
         # ["files","analysis_id","disease_abbr"]
         self.fields = fields
@@ -53,7 +54,7 @@ class EsQuery(object):
         Note that with scan the actual number of results returned is the
         size times the number of shards.
         '''
-        req_url = ''.join([self.url, '?search_type=scan&scroll=', timeout,
+        req_url = ''.join([self.url, '_search?search_type=scan&scroll=', timeout,
             '&size=%d' % size])
         req = urllib2.Request(req_url, self.get_json_query(query_string))
         response = urllib2.urlopen(req)
@@ -129,3 +130,21 @@ class EsQuery(object):
 
         else:
             return []
+
+
+class FieldList(object):
+    '''Shows what fields can be searched over '''
+
+    def __init__(self, url):
+        self.url = url
+
+    def attributes(self):
+        ''' look at base url .../_mapping '''
+
+        req = urllib2.Request('/'.join([self.url, '_mapping']))
+        response = urllib2.urlopen(req)
+        result = response.read()
+        properties = json.loads(result)
+        name = self.url.rstrip('/').split('/')[-1]
+        properties = properties[name]
+        return properties["properties"].keys()
