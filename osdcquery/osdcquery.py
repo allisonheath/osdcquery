@@ -8,6 +8,7 @@ import datetime
 import importlib
 import json
 import os
+import os.path
 
 from optparse import OptionParser
 from util import get_class
@@ -68,6 +69,7 @@ def main():
         settings.target_dir
 
     link_dir = options.link_dir if options.link_dir else settings.link_dir
+    link_dir = os.path.expanduser(link_dir)
 
     num_args = 3
     if options.update:
@@ -102,7 +104,8 @@ def main():
     query_class = get_class(settings.query_module_name,
         settings.query_class_name)
 
-    query = query_class(query_url, settings.query_fields)
+    query = query_class(query_url, settings.query_fields,
+        settings.non_disease_dir)
 
     dirbuild_class = get_class(settings.dirbuild_module_name,
         settings.dirbuild_class_name)

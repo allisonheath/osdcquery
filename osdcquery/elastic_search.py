@@ -11,14 +11,14 @@ import urllib2
 class EsQuery(object):
     ''' Queries an elastic search engine instance for file metadata'''
 
-    def __init__(self, url, fields):
+    def __init__(self, url, fields, non_disease_dir):
         ''' Takes the url of the elasticquery service e.g:
         localhost:9200/cghub/analysis/_search'''
 
         self.logger = logging.getLogger('osdcquery')
         self.logger.debug("Logger in elastic_search")
 
-	self.url = "".join([url.rstrip('/'), '/'])
+        self.url = "".join([url.rstrip('/'), '/'])
 
         #going to assume everything up to the first slash in the url is the
         #host (no non-root urls, not sure if this is a problem?)
@@ -30,6 +30,7 @@ class EsQuery(object):
 
         # ["files","analysis_id","disease_abbr"]
         self.fields = fields
+        self.non_disease_dir = non_disease_dir
 
     def get_json_query(self, query_string):
         json_data = json.dumps(
@@ -56,7 +57,15 @@ class EsQuery(object):
         '''
         req_url = ''.join([self.url, '_search?search_type=scan&scroll=', timeout,
             '&size=%d' % size])
-        req = urllib2.Request(req_url, self.get_json_query(query_string))
+
+        self.logger.debug("request url %s", req_url)
+
+        post_data = self.get_json_query(query_string)
+
+        self.logger.debug("data %s", post_data)
+
+        req = urllib2.Request(req_url, post_data)
+
         response = urllib2.urlopen(req)
         result = response.read()
 
@@ -93,6 +102,7 @@ class EsQuery(object):
 
             if 'hits' in result_json and 'hits' in result_json['hits']:
                 full_results.extend([{field: file_info['fields'][field]
+                    if field in file_info['fields'] else self.non_disease_dir
                          for field in self.fields}
                         for file_info in result_json['hits']['hits']])
 
@@ -110,8 +120,7 @@ class EsQuery(object):
         to a database of values.  We will asssume all errors are handled
         by the keyservice.
 
-        Returns list of metadata for files
-        '''
+        Returns list of metadata for files '''
 
         #curl localhost:9200/cghub/analysis/_search -d \
         # @es_queries/query_string.json

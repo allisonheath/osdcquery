@@ -7,10 +7,12 @@ query_fields = ["analysis_id", "disease_abbr", "files"]
 dirbuild_module_name = 'osdcquery.dir_build'
 dirbuild_class_name = 'TcgaDirBuild'
 target_dir = '/glusterfs/data/TCGA/'
-link_dir = '/tmp/qtool/newdir/'
+link_dir = '~/'
 
 fs_handler_module_name = 'osdcquery.fs_handler'
 fs_handler_class_name = 'UnixFsHandler'
 
 field_module_name = 'osdcquery.elastic_search'
 field_class_name = 'FieldList'
+
+non_disease_dir = 'none'
