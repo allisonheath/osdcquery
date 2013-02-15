@@ -148,16 +148,33 @@ class FieldList(object):
     def __init__(self, url):
         self.url = url
 
-    def attributes(self):
-        ''' look at base url .../_mapping '''
-
         self.logger = logging.getLogger('osdcquery')
         self.logger.debug("Logger in elastic_search FieldList")
+
+    def _get(self):
+        '''Get and cache the mapping '''
+
+        # the mapping should not change over the lifetime of
+        # the field objects lifetime
+
+        if hasattr(self, "properties"):
+            return self.properties
 
         req = urllib2.Request('/'.join([self.url, '_mapping']))
         response = urllib2.urlopen(req)
         result = response.read()
         properties = json.loads(result)
+        self.logger.debug(properties)
         name = self.url.rstrip('/').split('/')[-1]
-        properties = properties[name]
-        return properties["properties"].keys()
+        self.properties = properties[name]["properties"]
+        return self.properties
+
+    def attributes(self):
+        ''' look at base url .../_mapping '''
+
+        return self._get().keys()
+
+    def types(self):
+        ''' Return a map of the attributes to their type'''
+        props = self._get()
+        return {key: props["type"] for key in props}
