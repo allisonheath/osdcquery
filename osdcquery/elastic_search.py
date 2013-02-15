@@ -16,7 +16,7 @@ class EsQuery(object):
         localhost:9200/cghub/analysis/_search'''
 
         self.logger = logging.getLogger('osdcquery')
-        self.logger.debug("Logger in elastic_search")
+        self.logger.debug("Logger in elastic_search EsQuery")
 
         self.url = "".join([url.rstrip('/'), '/'])
 
@@ -150,6 +150,9 @@ class FieldList(object):
 
     def attributes(self):
         ''' look at base url .../_mapping '''
+
+        self.logger = logging.getLogger('osdcquery')
+        self.logger.debug("Logger in elastic_search FieldList")
 
         req = urllib2.Request('/'.join([self.url, '_mapping']))
         response = urllib2.urlopen(req)

@@ -16,3 +16,5 @@ field_module_name = 'osdcquery.elastic_search'
 field_class_name = 'FieldList'
 
 non_disease_dir = 'none'
+
+url = 'http://172.16.1.11/cghub/analysis/'

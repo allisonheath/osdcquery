@@ -38,7 +38,8 @@ def main():
     '''Runs query and builds symlinks '''
 
     usage = ("( python -m osdcquery.osdcquery | %prog ) [options] query_name"
-        "url query_string")
+        "[url] query_string\n If url is missing it will use the default from"
+        " the configuration module")
 
     parser = OptionParser(usage=usage)
 
@@ -71,11 +72,13 @@ def main():
     link_dir = options.link_dir if options.link_dir else settings.link_dir
     link_dir = os.path.expanduser(link_dir)
 
-    num_args = 3
+    max_args = 3
+    min_args = 2
     if options.update:
-        num_args = 1
+        max_args = 1
+        min_args = 1
 
-    if len(args) != num_args:
+    if len(args) > max_args or len(args) < min_args:
         parser.error("incorrect number of arguments")
 
     query_name = args[0]
@@ -93,8 +96,12 @@ def main():
         query_string = info[QUERY_STRING]
 
     else:
-        query_url = args[1]
-        query_string = args[2]
+        if len(args) == 2:
+            query_url = settings.url
+            query_string = args[1]
+        else:
+            query_url = args[1]
+            query_string = args[2]
 
     if fs_handler.exists(new_dir) and not options.update:
         error_message = 'Directory "%s" already exists' % new_dir
