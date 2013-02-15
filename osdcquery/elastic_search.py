@@ -103,8 +103,9 @@ class EsQuery(object):
             if 'hits' in result_json and 'hits' in result_json['hits']:
                 full_results.extend([{field: file_info['fields'][field]
                     if field in file_info['fields'] else self.non_disease_dir
-                         for field in self.fields}
-                        for file_info in result_json['hits']['hits']])
+                        for field in self.fields}
+                        for file_info in result_json['hits']['hits']
+                            if 'fields' in file_info])
 
             iter_curr = iter_curr + 1
             if iter_curr > iter_max:
