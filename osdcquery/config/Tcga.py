@@ -17,4 +17,4 @@ field_class_name = 'FieldList'
 
 non_disease_dir = 'none'
 
-url = 'http://172.16.1.11/cghub/analysis/'
+url = 'http://172.16.1.3/tcga-cghub/analysis/'
