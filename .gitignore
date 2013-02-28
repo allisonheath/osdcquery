@@ -11,6 +11,8 @@ eggs
 fake-eggs
 parts
 dist
+deb_dist
+MANIFEST
 .hg
 .bzr
 .svn
