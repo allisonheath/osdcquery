@@ -9,30 +9,72 @@ import importlib
 import json
 import os
 import os.path
+import requests
 
 from optparse import OptionParser
 from util import get_class
 from util import get_simple_logger
 from util import shared_options
+from pyelasticsearch import ElasticSearch
 
-
-QUERY_URL = "URL"
-QUERY_STRING = "Query"
-
-def create_manifest(query_name, query_url, query_string, config, num_files,
+def create_summary(query_name, query_url, query_string, config, num_files,
     num_links):
-    ''' Format and create a manifest file that describes the results of
-    the query operation.  This manifest file will be used for updating queries
+    ''' Create a json summary that describes the results of the query 
+    operation.  This json is written out to a file that can be used 
+    for updating queries.
     '''
     return json.dumps({
         "Query Name": query_name,
-        QUERY_URL: query_url,
-        QUERY_STRING: query_string,
+        "URL": query_url,
+        "Query": query_string,
         "Configuration Module": config,
         "Number of Files Found": num_files,
         "Number of Files Linked": num_links,
-        "Date of Query": datetime.datetime.now().strftime('%b-%d-%I%M%p-%G')
+        "Date of Query": datetime.datetime.now().isoformat()
     }, sort_keys=True, indent=4)
+
+
+#because of the inconsistency between _count and _search
+def get_count_query(query_string):
+    query = {
+                "query_string": {
+                    "query": query_string
+                }
+            }
+    return query
+
+def get_search_query(query_string, fields=None, size=10):
+    query = {}
+    query['query'] = get_count_query(query_string)
+    query['size'] = size
+
+    #the docs say you can use * to get all fields, doesn't seem to work
+    if fields:
+        query['fields'] = fields
+    return query
+
+def get_osdc_status(query_results, cdb_url, cdb_db):
+    keys = {}
+    keys['keys'] = []
+    for entry in query_results['hits']['hits']:
+        keys['keys'].append(entry['_id'])
+
+    bulk_url = ''.join([cdb_url, '/', cdb_db, '/_all_docs?include_docs=true'])
+    headers = {'content-type' : 'application/json'}
+    r = requests.post(bulk_url, data=json.dumps(keys), headers=headers)
+    rjson = r.json()
+
+    status = {}
+
+    for row in rjson['rows']:
+        if 'error' in row:
+            status[row['key']] = {}
+            status[row['key']]['error'] = row['error']
+        else:
+            status[row['key']] = {}
+            status[row['key']]['md5_ok'] = row['doc']['md5_ok']
+
+    return status
 
 def main():
     '''Runs query and builds symlinks '''
@@ -97,7 +139,7 @@ def main():
 
     else:
         if len(args) == 2:
-            query_url = settings.url
+            query_url = settings.es_url
             query_string = args[1]
         else:
             query_url = args[1]
@@ -108,29 +150,57 @@ def main():
         logger.error(error_message)
         exit(1)
 
-    query_class = get_class(settings.query_module_name,
-        settings.query_class_name)
+    #why?
+    #query_class = get_class(settings.query_module_name,
+    #    settings.query_class_name)
 
-    query = query_class(query_url, settings.query_fields,
-        settings.non_disease_dir)
+    #query = query_class(query_url, settings.query_fields,
+    #    settings.non_disease_dir)
 
     dirbuild_class = get_class(settings.dirbuild_module_name,
         settings.dirbuild_class_name)
 
     builder = dirbuild_class(target_dir, os.path.join(link_dir, query_name))
 
-    query_results = query.run_query(query_string)
+    meta_es = ElasticSearch(query_url)
 
-    logger.debug(query_results)
+    count_query = get_count_query(query_string)
+    logger.debug(count_query)
 
-    if len(query_results) < 1:
-        print "Query returned 0 results"
-        links = {}
+    count_result = meta_es.count(count_query, index=settings.es_index, 
+        doc_type=settings.es_doc_type)
+
+    num_results = int(count_result['count'])
+    logger.debug(num_results)
+
+    search_query = get_search_query(query_string, size=num_results)
+
+    logger.debug(search_query)
+    search_results = meta_es.search(search_query, index=settings.es_index, 
+        doc_type=settings.es_doc_type)
+
+    print json.dumps(search_results, indent=4)
+
+    num_hits = len(search_results['hits']['hits'])
+
+    if num_results != num_hits:
+        logger.warning('Count returned %d results, '
+            'while search returned %d results' % (num_results, num_hits))
+
+    osdc_status = get_osdc_status(search_results, settings.cdb_url, settings.cdb_osdc)
+    print('osdc_status')
+    print(osdc_status)
+
+    if num_hits < 1:
+        loxgger.info("Query returned 0 results")
+        manifest = {}
     else:
-        links = builder.associate(query_results)
+        manifest = builder.associate(search_results, osdc_status)
 
-    if len(links) < 1:
-        print "No links to be created"
+    print(manifest)
+
+    if len(manifest) < 1:
+        logger.info("No links to be created")
 
     if options.update:
         logger.info("Updating directory %s" % new_dir)
@@ -140,20 +210,44 @@ def main():
 
     num_links = 0
 
-    for link, target in links.items():
+    for key, value in manifest.items():
+        print(manifest[key])
+        if 'error' in value:
+            manifest[key]['linked'] = False
+            continue
+
+        if 'md5_ok' not in value:
+            manifest[key]['linked'] = False
+            continue
+
+        if value['md5_ok'] == False:
+            manifest[key]['linked'] = False
+            continue
+
+        target = value['target']
+        link_name = value['link_name']
         exists = fs_handler.exists(target)
+
         if not exists:
-            logger.warning("File %s does not exist on disk." % target)
-        if exists or options.dangle:
-            logger.info("Creating link %s to target %s" % (link, target))
-            fs_handler.symlink(target, link)
+            manifest[key]['error'] = 'not_found_linking'
+            if not options.dangle:
+                manifest[key]['linked'] = False
+                continue
+
+        try:
+            fs_handler.symlink(target, link_name)
+            manifest[key]['linked'] = True
             num_links += 1
+        except Exception as e:
+            manifest[key]['error'] = str(e)
+            manifest[key]['linked'] = False
 
-    manifest = create_manifest(query_name, query_url, query_string, options.config,
-        len(links), num_links)
+    summary = create_summary(query_name, query_url, query_string, options.config,
+        len(manifest), num_links)
 
-    fs_handler.write_manifest(new_dir, manifest)
+    fs_handler.write_summary(new_dir, summary)
+    fs_handler.write_manifest(new_dir, json.dumps(manifest, indent=4))
+  
 
 if __name__ == "__main__":
-
     main()

@@ -47,7 +47,10 @@ def get_simple_logger(loglevel, verbose):
 
     logger = logging.getLogger('osdcquery')
     logger.setLevel(numeric_level)
-    logger.addHandler(logging.StreamHandler())
+    sh = logging.StreamHandler()
+    sh.setLevel(numeric_level)
+    sh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s : %(message)s'))
+    logger.addHandler(sh)
 
     return logger
 

@@ -2,7 +2,7 @@
 
 # Apache 2 license
 
-''' Probably uneeeded cruft so that if needed we can have a Windows class
+''' Probably uneeded cruft so that if needed we can have a Windows class
 that will have symlink be a wrapper for Win32file.CreateSymbolicLink
 '''
 
@@ -27,14 +27,28 @@ class UnixFsHandler(object):
         return os.path.exists(path)
 
     def write_manifest(self, path, manifest):
-        ''' Write .info file in path consisting of string manifest'''
-        f = open(os.path.join(path, ".info"), 'w')
+        ''' Write json file in path consisting of string manifest'''
+        f = open(os.path.join(path, "MANIFEST.json"), 'w')
         f.write(manifest)
         f.close()
 
     def read_manifest(self, path):
-        ''' read and return .info from path'''
-        f = open(os.path.join(path, ".info"))
+        ''' read and return json from path'''
+        f = open(os.path.join(path, "MANIFEST.json"))
         manifest = f.read()
         f.close()
         return manifest
+
+    def write_summary(self, path, summary):
+        ''' Write json file in path consisting of string summary'''
+        f = open(os.path.join(path, "SUMMARY.json"), 'w')
+        f.write(summary)
+        f.close()
+
+    def read_summary(self, path):
+        ''' read and return .info from path'''
+        f = open(os.path.join(path, "SUMMARY.json"))
+        summary = f.read()
+        f.close()
+        return summary
+
