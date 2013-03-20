@@ -16,8 +16,19 @@
 
 import importlib
 import logging
+import datetime
 import logging.handlers
 
+class ISODateTimeFormatter(logging.Formatter):
+    converter=datetime.datetime.fromtimestamp
+    def formatTime(self, record, datefmt=None):
+        ct = self.converter(record.created)
+        if datefmt:
+            s = ct.strftime(datefmt)
+        else:
+            t = ct.strftime("%Y-%m-%dT%H:%M:%S")
+            s = "%s.%03dZ" % (t, record.msecs)
+        return s
 
 def shared_options(parser):
     '''parser is an OptionParser object add the following options to it '''
@@ -49,7 +60,8 @@ def get_simple_logger(loglevel, verbose):
     logger.setLevel(numeric_level)
     sh = logging.StreamHandler()
     sh.setLevel(numeric_level)
-    sh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s : %(message)s'))
+    sh.setFormatter(ISODateTimeFormatter('%(asctime)s %(name)s %(levelname)s : '
+        '%(message)s'))
     logger.addHandler(sh)
 
     return logger

@@ -1,10 +1,20 @@
-#!/usr/bin/python
-
-# Apache 2 License
+#  Copyright 2013 Open Cloud Consortium
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
 
 '''Runs query and builds symlinks '''
 
-import datetime
 import importlib
 import json
 import os
@@ -15,66 +25,7 @@ from optparse import OptionParser
 from util import get_class
 from util import get_simple_logger
 from util import shared_options
-from pyelasticsearch import ElasticSearch
-
-def create_summary(query_name, query_url, query_string, config, num_files,
-    num_links):
-    ''' Create a json summary that describes the results of the query 
-    operation.  This json is written out to a file that can be used 
-    for updating queries.
-    '''
-    return json.dumps({
-        "Query Name": query_name,
-        "URL": query_url,
-        "Query": query_string,
-        "Configuration Module": config,
-        "Number of Files Found": num_files,
-        "Number of Files Linked": num_links,
-        "Date of Query": datetime.datetime.now().isoformat()
-    }, sort_keys=True, indent=4)
-
-
-#because of the inconsistency between _count and _search
-def get_count_query(query_string):
-    query = {
-                "query_string": {
-                    "query": query_string
-                }
-            }
-    return query
-
-def get_search_query(query_string, fields=None, size=10):
-    query = {}
-    query['query'] = get_count_query(query_string)
-    query['size'] = size
-
-    #the docs say you can use * to get all fields, doesn't seem to work
-    if fields:
-        query['fields'] = fields
-    return query
-
-def get_osdc_status(query_results, cdb_url, cdb_db):
-    keys = {}
-    keys['keys'] = []
-    for entry in query_results['hits']['hits']:
-        keys['keys'].append(entry['_id'])
-
-    bulk_url = ''.join([cdb_url, '/', cdb_db, '/_all_docs?include_docs=true'])
-    headers = {'content-type' : 'application/json'}
-    r = requests.post(bulk_url, data=json.dumps(keys), headers=headers)
-    rjson = r.json()
-
-    status = {}
-
-    for row in rjson['rows']:
-        if 'error' in row:
-            status[row['key']] = {}
-            status[row['key']]['error'] = row['error']
-        else:
-            status[row['key']] = {}
-            status[row['key']]['md5_ok'] = row['doc']['md5_ok']
-
-    return status
+from query import ESQuery, ESQueryMetadata
 
 def main():
     '''Runs query and builds symlinks '''
@@ -88,7 +39,7 @@ def main():
     # add shared options
     shared_options(parser)
 
-    parser.add_option("-t", "--target_dir", dest="target_dir",
+    parser.add_option("-t", "--target_dir", dest="target_dir", 
         help="target directory (where the original files are located)")
 
     parser.add_option("-l", "--link_dir", dest="link_dir",
@@ -99,7 +50,11 @@ def main():
         default=False)
 
     parser.add_option("-u", "--update", action="store_true", dest="update",
-        help="update files in query directory using .info file",
+        help="update files in query directory using summary file",
+        default=False)
+
+    parser.add_option("-m", "--from_manifest", action="store_true", 
+        dest="from_manifest", help="use manifest to generate symlinks",
         default=False)
 
     (options, args) = parser.parse_args()
@@ -108,8 +63,7 @@ def main():
 
     settings = importlib.import_module(options.config)
 
-    target_dir = options.target_dir if options.target_dir else \
-        settings.target_dir
+    target_dir = options.target_dir if options.target_dir else settings.target_dir
 
     link_dir = options.link_dir if options.link_dir else settings.link_dir
     link_dir = os.path.expanduser(link_dir)
@@ -125,17 +79,20 @@ def main():
 
     query_name = args[0]
 
-    fs_handler_class = get_class(settings.fs_handler_module_name,
-        settings.fs_handler_class_name)
+    fs_handler_class = get_class(settings.fs_handler_module_name, settings.fs_handler_class_name)
 
     fs_handler = fs_handler_class()
 
-    new_dir = os.path.join(link_dir, query_name)
+    dirbuild_class = get_class(settings.dirbuild_module_name,
+            settings.dirbuild_class_name)
+
+    top_dir = os.path.join(link_dir, query_name)
 
     if options.update:
-        info = json.loads(fs_handler.read_manifest(new_dir))
-        query_url = info[QUERY_URL]
-        query_string = info[QUERY_STRING]
+        esq_meta = ESQueryMetadata(dirbuild_class, fs_handler, top_dir, target_dir)
+        esq_meta.read_metadata()
+        esq_meta.update_query_and_symlinks(options.dangle)
+        esq_meta.write_metadata()
 
     else:
         if len(args) == 2:
@@ -145,109 +102,23 @@ def main():
             query_url = args[1]
             query_string = args[2]
 
-    if fs_handler.exists(new_dir) and not options.update:
-        error_message = 'Directory "%s" already exists' % new_dir
-        logger.error(error_message)
-        exit(1)
+        if fs_handler.exists(top_dir):
+            error_message = "Directory '%s' already exists, use -u to update" % top_dir
+            logger.error(error_message)
+            exit(1)
 
-    #why?
-    #query_class = get_class(settings.query_module_name,
-    #    settings.query_class_name)
 
-    #query = query_class(query_url, settings.query_fields,
-    #    settings.non_disease_dir)
+        esq = ESQuery(query_url, query_string, query_name, settings.es_index, settings.es_doc_type, 
+            settings.cdb_url, settings.cdb_osdc)
 
-    dirbuild_class = get_class(settings.dirbuild_module_name,
-        settings.dirbuild_class_name)
+        results, status = esq.perform_query_with_status()
 
-    builder = dirbuild_class(target_dir, os.path.join(link_dir, query_name))
+        esq_meta = ESQueryMetadata(dirbuild_class, fs_handler, top_dir, target_dir, esq)
 
-    meta_es = ElasticSearch(query_url)
+        esq_meta.create_symlinks(options.dangle)
 
-    count_query = get_count_query(query_string)
-    logger.debug(count_query)
-
-    count_result = meta_es.count(count_query, index=settings.es_index, 
-        doc_type=settings.es_doc_type)
-
-    num_results = int(count_result['count'])
-    logger.debug(num_results)
-
-    search_query = get_search_query(query_string, size=num_results)
-
-    logger.debug(search_query)
-    search_results = meta_es.search(search_query, index=settings.es_index, 
-        doc_type=settings.es_doc_type)
-
-    print json.dumps(search_results, indent=4)
-
-    num_hits = len(search_results['hits']['hits'])
-
-    if num_results != num_hits:
-        logger.warning('Count returned %d results, '
-            'while search returned %d results' % (num_results, num_hits))
-
-    osdc_status = get_osdc_status(search_results, settings.cdb_url, settings.cdb_osdc)
-    print('osdc_status')
-    print(osdc_status)
-
-    if num_hits < 1:
-        loxgger.info("Query returned 0 results")
-        manifest = {}
-    else:
-        manifest = builder.associate(search_results, osdc_status)
-
-    print(manifest)
-
-    if len(manifest) < 1:
-        logger.info("No links to be created")
-
-    if options.update:
-        logger.info("Updating directory %s" % new_dir)
-    else:
-        logger.info("Making directory %s" % new_dir)
-        fs_handler.mkdir(new_dir)
-
-    num_links = 0
-
-    for key, value in manifest.items():
-        print(manifest[key])
-        if 'error' in value:
-            manifest[key]['linked'] = False
-            continue
-
-        if 'md5_ok' not in value:
-            manifest[key]['linked'] = False
-            continue
-
-        if value['md5_ok'] == False:
-            manifest[key]['linked'] = False
-            continue
-
-        target = value['target']
-        link_name = value['link_name']
-        exists = fs_handler.exists(target)
-
-        if not exists:
-            manifest[key]['error'] = 'not_found_linking'
-            if not options.dangle:
-                manifest[key]['linked'] = False
-                continue
-
-        try:
-            fs_handler.symlink(target, link_name)
-            manifest[key]['linked'] = True
-            num_links += 1
-        except Exception as e:
-            manifest[key]['error'] = str(e)
-            manifest[key]['linked'] = False
-
-    summary = create_summary(query_name, query_url, query_string, options.config,
-        len(manifest), num_links)
-
-    fs_handler.write_summary(new_dir, summary)
-    fs_handler.write_manifest(new_dir, json.dumps(manifest, indent=4))
-  
+        esq_meta.write_metadata()
+    
 
 if __name__ == "__main__":
     main()

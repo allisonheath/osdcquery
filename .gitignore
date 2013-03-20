@@ -18,3 +18,7 @@ dist
 *.pyo
 *.tmp*
 *.swp
+.venv
+pyelasticsearch
+\#*
+MANIFEST

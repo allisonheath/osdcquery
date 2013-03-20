@@ -26,29 +26,14 @@ class UnixFsHandler(object):
         ''' Wrapper for os.path.exists'''
         return os.path.exists(path)
 
-    def write_manifest(self, path, manifest):
-        ''' Write json file in path consisting of string manifest'''
-        f = open(os.path.join(path, "MANIFEST.json"), 'w')
-        f.write(manifest)
+    def write_file(self, file, content):
+        f = open(file, 'w')
+        f.write(content)
         f.close()
 
-    def read_manifest(self, path):
-        ''' read and return json from path'''
-        f = open(os.path.join(path, "MANIFEST.json"))
-        manifest = f.read()
+    def read_file(self, file):
+        f = open(file)
+        content = f.read()
         f.close()
-        return manifest
-
-    def write_summary(self, path, summary):
-        ''' Write json file in path consisting of string summary'''
-        f = open(os.path.join(path, "SUMMARY.json"), 'w')
-        f.write(summary)
-        f.close()
-
-    def read_summary(self, path):
-        ''' read and return .info from path'''
-        f = open(os.path.join(path, "SUMMARY.json"))
-        summary = f.read()
-        f.close()
-        return summary
-
+        return content
+        
