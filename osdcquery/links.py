@@ -26,13 +26,13 @@ class TcgaLinks(object):
         self.old_dir = old_dir
         self.new_dir = new_dir
 
-    def associate(self, query, label='_source'):
+    def associate(self, es_query, cdb_query, label='_source'):
         ''' Create files using the metadata dictionary.'''
        
         file_data = {}
 
-        results = query.query_results
-        status_results = query.status_results
+        results = es_query.query_results
+        status_results = cdb_query.status_results
 
         for entry in results['hits']['hits']:
             key = entry['_id']
@@ -41,7 +41,10 @@ class TcgaLinks(object):
             status = status_results[key]
 
             for k,v in status.items():
-                file_data[key][k] = v
+                if k == "error":
+                    file_data[key]["reason"] = v
+                else:
+                    file_data[key][k] = v
 
             file_data[key]['files'] = entry[label]['files']
 

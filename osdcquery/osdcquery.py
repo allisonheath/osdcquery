@@ -25,7 +25,7 @@ from optparse import OptionParser
 from util import get_class
 from util import get_simple_logger
 from util import shared_options
-from query import ESQuery, ESQueryMetadata
+from query import ESQuery, ESQueryMetadata, CDBQuery
 
 def main():
     '''Runs query and builds symlinks '''
@@ -91,7 +91,7 @@ def main():
     if options.update:
         esq_meta = ESQueryMetadata(dirbuild_class, fs_handler, top_dir, target_dir)
         esq_meta.read_metadata()
-        esq_meta.update_query_and_symlinks(options.dangle)
+        esq_meta.update_query_status_symlinks(options.dangle, settings.cdb_query_username, settings.cdb_query_password)
         esq_meta.write_metadata()
 
     else:
@@ -107,15 +107,20 @@ def main():
             logger.error(error_message)
             exit(1)
 
+        cdbq = CDBQuery(settings.cdb_url, settings.cdb_osdc, settings.cdb_query, settings.cdb_query_username,
+            settings.cdb_query_password)
 
-        esq = ESQuery(query_url, query_string, query_name, settings.es_index, settings.es_doc_type, 
-            settings.cdb_url, settings.cdb_osdc)
+        esq = ESQuery(query_url, query_string, query_name, settings.es_index, settings.es_doc_type)
 
-        results, status = esq.perform_query_with_status()
+        results = esq.perform_query()
 
-        esq_meta = ESQueryMetadata(dirbuild_class, fs_handler, top_dir, target_dir, esq)
+        cdbq.get_status(results)
+
+        esq_meta = ESQueryMetadata(dirbuild_class, fs_handler, top_dir, target_dir, esq, cdbq)
 
         esq_meta.create_symlinks(options.dangle)
+
+        cdbq.register_manifest(esq_meta.manifest)
 
         esq_meta.write_metadata()
     
