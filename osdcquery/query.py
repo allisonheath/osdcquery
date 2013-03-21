@@ -25,14 +25,12 @@ class ESQuery(object):
     An object which contains a elasticsearch query and its results.
     '''
     def __init__(self, query_url, query_string, query_name, query_index, 
-        query_doc_type, status_url, status_db):
+        query_doc_type):
         self.query_url = query_url
         self.query_string = query_string
         self.query_name = query_name
         self.query_index = query_index
         self.query_doc_type = query_doc_type
-        self.status_url = status_url
-        self.status_db = status_db
         self.es_conn = ElasticSearch(self.query_url)
         self.logger = logging.getLogger('osdcquery')
         self.status_results = None
@@ -63,37 +61,13 @@ class ESQuery(object):
             "Query Name": self.query_name,
             "Search URL": '/'.join([self.query_url, self.query_index, 
                 self.query_doc_type]),
-            "Status URL": '/'.join([self.status_url, self.status_db]),
             "Query": self.query_string,
             "Query Date/Time": self.query_datetime.isoformat()
             }
 
-    def perform_query_with_status(self):
+    def perform_query(self):
         self._search()
-        self._status()
-        return self.query_results, self.status_results
-
-    def _status(self):
-        keys = {}
-        keys["keys"] = []
-        for entry in self.query_results["hits"]["hits"]:
-            keys["keys"].append(entry["_id"])
-
-        bulk_url = "".join([self.status_url, "/", self.status_db, 
-            "/_all_docs?include_docs=true"])
-        headers = {"content-type" : "application/json"}
-        r = requests.post(bulk_url, data=json.dumps(keys), headers=headers)
-        rjson = r.json()
-
-        self.status_results = {}
-
-        for row in rjson["rows"]:
-            if "error" in row:
-                self.status_results[row["key"]] = {}
-                self.status_results[row["key"]]["error"] = row["error"]
-            else:
-                self.status_results[row["key"]] = {}
-                self.status_results[row["key"]]["md5_ok"] = row["doc"]["md5_ok"]
+        return self.query_results
 
     def _search(self):
         count_query = self.get_count_query()
@@ -119,14 +93,14 @@ class ESQuery(object):
             self.logger.warning("Count returned %d results, "
                 "while search returned %d results" % (num_results, num_hits))
 
- 
 class ESQueryMetadata:
     '''
     An object that manages metadata around a query
     '''
 
-    def __init__(self, dirbuild_class, fs_handler, top_dir, target_dir=None, query=None):
-        self.query = query
+    def __init__(self, dirbuild_class, fs_handler, top_dir, target_dir=None, es_query=None, cdb_query=None):
+        self.es_query = es_query
+        self.cdb_query = cdb_query
         self.manifest = None
         self.manifest_filename = None
         self.dirbuild_class = dirbuild_class
@@ -137,40 +111,38 @@ class ESQueryMetadata:
         self.metadata_dir = os.path.join(top_dir, "metadata")
         self.builder = dirbuild_class(target_dir, top_dir)
         self.logger = logging.getLogger("osdcquery")
-        if query is not None:
+        if es_query is not None and cdb_query is not None:
             self._build_manifest()
 
     def _build_manifest(self):
-        self.manifest = {}
+        if self.manifest is not None and "id" in self.manifest:
+            self.manifest = { "id" : self.manifest["id"]}
+        else:
+            self.manifest = {}
 
         #going to include some redundant data between summary and manifest
         #idea is that query can be performed from the manifest and results
         #compared
 
-        self.manifest["query_name"] = self.query.query_name
-        self.manifest["query_string"] = self.query.query_string
-        self.manifest["query_url"] = self.query.query_url
-        self.manifest["query_index"] = self.query.query_index
-        self.manifest["query_doc_type"] = self.query.query_doc_type
-        self.manifest["status_url"] = self.query.status_url
-        self.manifest["status_db"] = self.query.status_db
+        self.manifest["es_query_name"] = self.es_query.query_name
+        self.manifest["es_query_string"] = self.es_query.query_string
+        self.manifest["es_query_url"] = self.es_query.query_url
+        self.manifest["es_query_index"] = self.es_query.query_index
+        self.manifest["es_query_doc_type"] = self.es_query.query_doc_type
+        self.manifest["cdb_query_url"] = self.cdb_query.url
+        self.manifest["cdb_status_db"] = self.cdb_query.status_db
         self.manifest["target_dir"] = self.target_dir
         self.manifest["top_dir"] = self.top_dir
         self.manifest["dirbuild_class"] = self.dirbuild_class.__name__
         self.manifest["dirbuild_module"] = self.dirbuild_class.__module__
-        self.manifest["query_datetime"] = self.query.query_datetime.isoformat()
+        self.manifest["es_query_datetime"] = self.es_query.query_datetime.isoformat()
 
         self.manifest["results"] = {}
 
-        if self.query.query_results["hits"]["total"] < 1:
+        if self.es_query.query_results["hits"]["total"] < 1:
             logger.info("Query returned 0 results")
         else:
-            self.manifest["results"] = self.builder.associate(self.query)
-
-        epoch = datetime.datetime.utcfromtimestamp(0)
-        delta = self.query.query_datetime - epoch
-        self.manifest_filename = "".join(['MANIFEST-', 
-            str(int(delta.total_seconds())), '.json'])
+            self.manifest["results"] = self.builder.associate(self.es_query, self.cdb_query)
 
     def _write_manifest(self):
         self.fs_handler.write_file(os.path.join(self.metadata_dir, 
@@ -178,13 +150,21 @@ class ESQueryMetadata:
             indent=4))
 
     def _write_summary(self):
-        summary = dict(self.get_manifest_summary().items() + 
-            self.query.get_query_summary().items())
+        summary = dict(self.get_manifest_summary().items() + self.es_query.get_query_summary().items() + 
+            self.cdb_query.get_status_summary().items())
 
         self.fs_handler.write_file(os.path.join(self.metadata_dir, "SUMMARY.json"), 
             json.dumps(summary, sort_keys=True, indent=4))
 
     def write_metadata(self):
+        if "id" not in self.manifest:
+            self.logger.warning("Manifest not registered, using query timestamp for filename")
+            epoch = datetime.datetime.utcfromtimestamp(0)
+            delta = self.es_query.query_datetime - epoch
+            self.manifest_filename = "".join(["MANIFEST-", str(int(delta.total_seconds())), ".json"])
+        else:
+            self.manifest_filename = "".join(["MANIFEST-", self.manifest["id"], ".json"])
+
         self._write_manifest()
         self._write_summary()
 
@@ -195,19 +175,26 @@ class ESQueryMetadata:
         manifest_filename = os.path.join(metadata_dir, summary["Manifest"])
         self.manifest = json.loads(self.fs_handler.read_file(manifest_filename))
 
-    def _get_query(self):
-        if self.query is None:
+    def _get_es_query(self):
+        if self.es_query is None:
             if self.manifest is None:
                 return None
-            self.query = ESQuery(self.manifest["query_url"], 
-                self.manifest["query_string"], self.manifest["query_name"], 
-                self.manifest["query_index"], self.manifest["query_doc_type"], 
-                self.manifest["status_url"], self.manifest["status_db"])
+            self.es_query = ESQuery(self.manifest["es_query_url"], 
+                self.manifest["es_query_string"], self.manifest["es_query_name"], 
+                self.manifest["es_query_index"], self.manifest["es_query_doc_type"])
 
+    def _get_cdb_query(self, username, password):
+        if self.cdb_query is None:
+            if self.manifest is None:
+                return None
+            self.cdb_query = CDBQuery(self.manifest["cdb_query_url"], self.manifest["cdb_status_db"], 
+                username, password)
 
-    def update_query_and_symlinks(self, dangle=False):
-        self._get_query()
-        self.query.perform_query_with_status()
+    def update_query_status_symlinks(self, dangle=False, username=None, password=None):
+        self._get_es_query()
+        self.es_query.perform_query()
+        self._get_cdb_query(username, password)
+        self.cdb_query.get_status(self.es_query.query_results)
         self._build_manifest()
         self.update_symlinks(dangle)
 
@@ -218,8 +205,8 @@ class ESQueryMetadata:
         num_linked = 0
 
         for key, value in self.manifest["results"].items():
-            if "error" in value:
-                error_reason = value["error"]
+            if "reason" in value:
+                error_reason = value["reason"]
                 if error_reason not in errors:
                     errors[error_reason] = 0
                 errors[error_reason] += 1
@@ -228,7 +215,7 @@ class ESQueryMetadata:
                 num_linked += 1
 
             num_total += 1
-        summary["Errors"] = errors
+        summary["Not Linked Reasons"] = errors
         summary["Analyses Found"] = num_total
         summary["Analyses Linked"] = num_linked
         summary["Analyses Origin Dir"] = self.target_dir
@@ -261,18 +248,18 @@ class ESQueryMetadata:
         results = self.manifest["results"]
 
         for key, value in results.items():
-            if "error" in value:
+            if "reason" in value:
                 results[key]["linked"] = False
                 continue
 
             if "md5_ok" not in value:
                 results[key]["linked"] = False
-                results[key]["error"] = "md5_not_found"
+                results[key]["reason"] = "md5_not_found"
                 continue
 
             if value["md5_ok"] == False:
                 results[key]["linked"] = False
-                results[key]["error"] = "md5_not_ok"
+                results[key]["reason"] = "md5_not_ok"
                 continue
 
             target = value["target"]
@@ -280,7 +267,7 @@ class ESQueryMetadata:
             exists = self.fs_handler.exists(target)
 
             if not exists:
-                results[key]["error"] = "not_found_linking"
+                results[key]["reason"] = "not_found_linking"
                 if not dangle:
                     results[key]["linked"] = False
                     continue
@@ -290,8 +277,59 @@ class ESQueryMetadata:
                 results[key]["linked"] = True
                 num_links += 1
             except Exception as e:
-                results[key]["error"] = str(e)
+                results[key]["reason"] = str(e)
                 results[key]["linked"] = False
 
         return results, num_links
 
+
+class CDBQuery:
+    '''
+    Manages direct couchdb queries, including status and registering the queries
+    ''' 
+    def __init__(self, url, status_db, query_db, username=None, password=None):
+        self.url = url
+        self.status_db = status_db
+        self.query_db = query_db
+        self.username = username
+        self.password = password
+        self.status_results = None
+
+    def get_status(self, query_results):
+        keys = {}
+        keys["keys"] = []
+        for entry in query_results["hits"]["hits"]:
+            keys["keys"].append(entry["_id"])
+
+        bulk_url = "".join([self.url, "/", self.status_db, 
+            "/_all_docs?include_docs=true"])
+        headers = {"content-type" : "application/json"}
+        r = requests.post(bulk_url, data=json.dumps(keys), headers=headers)
+        rjson = r.json()
+
+        self.status_results = {}
+
+        for row in rjson["rows"]:
+            if "error" in row:
+                self.status_results[row["key"]] = {}
+                self.status_results[row["key"]]["reason"] = row["error"]
+            else:
+                self.status_results[row["key"]] = {}
+                self.status_results[row["key"]]["md5_ok"] = row["doc"]["md5_ok"]
+
+        return self.status_results
+
+    def get_manifest(self, manifest_id):
+        get_url = "/".join([self.url, self.query_db, manifest_id])
+        r = requests.get(get_url, auth=(self.username, self.password))
+        return r.json()
+
+    def get_status_summary(self):
+        return { "Status URL": "/".join([self.url, self.status_db]) }
+
+    def register_manifest(self, manifest):
+        write_url = "/".join([self.url, self.query_db])
+        headers = {"content-type" : "application/json"}
+        r = requests.post(write_url, data=json.dumps(manifest), headers=headers, auth=(self.username, self.password))
+        manifest["id"] = r.json()["id"]
+        return manifest["id"]
