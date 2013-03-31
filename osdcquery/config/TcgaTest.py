@@ -5,7 +5,7 @@
 dirbuild_module_name = 'osdcquery.links'
 dirbuild_class_name = 'TcgaLinks'
 target_dir = '/glusterfs/data/TCGA/'
-link_dir = '~/'
+link_dir = '/tmp'
 
 fs_handler_module_name = 'osdcquery.fs_handler'
 fs_handler_class_name = 'UnixFsHandler'
