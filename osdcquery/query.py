@@ -20,6 +20,8 @@ import requests
 import json
 import datetime
 
+from util import get_simple_logger
+
 class ESQuery(object):
     '''
     An object which contains a elasticsearch query and its results.
@@ -32,7 +34,8 @@ class ESQuery(object):
         self.query_index = query_index
         self.query_doc_type = query_doc_type
         self.es_conn = ElasticSearch(self.query_url)
-        self.logger = logging.getLogger('osdcquery')
+        #self.logger = logging.getLogger('osdcquery')
+        self.logger = get_simple_logger("DEBUG", True)
         self.status_results = None
         self.query_results = None
         self.query_datetime = None
@@ -71,10 +74,7 @@ class ESQuery(object):
 
     def _search(self):
         count_query = self.get_count_query()
-        self.logger.debug(count_query)
-
-        count_result = self.es_conn.count(count_query, index=self.query_index, 
-            doc_type=self.query_doc_type)
+        count_result = self.es_conn.count(count_query, index=self.query_index, doc_type=self.query_doc_type)
 
         num_results = int(count_result["count"])
         self.logger.debug(num_results)
@@ -82,8 +82,7 @@ class ESQuery(object):
         search_query = self.get_search_query(size=num_results)
 
         self.logger.debug(search_query)
-        self.query_results = self.es_conn.search(search_query, 
-            index=self.query_index, doc_type=self.query_doc_type)
+        self.query_results = self.es_conn.search(search_query, index=self.query_index, doc_type=self.query_doc_type)
 
         self.query_datetime = datetime.datetime.now()
 
@@ -98,25 +97,26 @@ class ESQueryMetadata:
     An object that manages metadata around a query
     '''
 
-    def __init__(self, dirbuild_class, fs_handler, top_dir, target_dir=None, es_query=None, cdb_query=None):
+    def __init__(self, dir_builder, fs_handler, top_dir, target_dir=None, es_query=None, cdb_query=None, manifest=None):
         self.es_query = es_query
         self.cdb_query = cdb_query
-        self.manifest = None
+        self.manifest = manifest
         self.manifest_filename = None
-        self.dirbuild_class = dirbuild_class
+        #self.dirbuild_class = dirbuild_class
         self.fs_handler = fs_handler
         self.target_dir = target_dir
         self.top_dir = top_dir
         self.data_dir = os.path.join(top_dir, "data")
         self.metadata_dir = os.path.join(top_dir, "metadata")
-        self.builder = dirbuild_class(target_dir, top_dir)
+        #self.builder = dirbuild_class(target_dir, top_dir)
+        self.builder = dir_builder
         self.logger = logging.getLogger("osdcquery")
         if es_query is not None and cdb_query is not None:
             self._build_manifest()
 
     def _build_manifest(self):
-        if self.manifest is not None and "id" in self.manifest:
-            self.manifest = { "id" : self.manifest["id"]}
+        if self.manifest is not None and "_id" in self.manifest:
+            self.manifest = { "_id" : self.manifest["_id"]}
         else:
             self.manifest = {}
 
@@ -133,8 +133,8 @@ class ESQueryMetadata:
         self.manifest["cdb_status_db"] = self.cdb_query.status_db
         self.manifest["target_dir"] = self.target_dir
         self.manifest["top_dir"] = self.top_dir
-        self.manifest["dirbuild_class"] = self.dirbuild_class.__name__
-        self.manifest["dirbuild_module"] = self.dirbuild_class.__module__
+        #self.manifest["dirbuild_class"] = self.builder.__name__
+        #self.manifest["dirbuild_module"] = self.builder.__module__
         self.manifest["es_query_datetime"] = self.es_query.query_datetime.isoformat()
 
         self.manifest["results"] = {}
@@ -150,20 +150,21 @@ class ESQueryMetadata:
             indent=4))
 
     def _write_summary(self):
-        summary = dict(self.get_manifest_summary().items() + self.es_query.get_query_summary().items() + 
-            self.cdb_query.get_status_summary().items())
+        summary = dict(self.get_manifest_summary().items()) 
+        #+ self.cdb_query.get_status_summary().items()
+        #+ self.es_query.get_query_summary().items() 
 
         self.fs_handler.write_file(os.path.join(self.metadata_dir, "SUMMARY.json"), 
             json.dumps(summary, sort_keys=True, indent=4))
 
     def write_metadata(self):
-        if "id" not in self.manifest:
+        if "_id" not in self.manifest:
             self.logger.warning("Manifest not registered, using query timestamp for filename")
             epoch = datetime.datetime.utcfromtimestamp(0)
             delta = self.es_query.query_datetime - epoch
             self.manifest_filename = "".join(["MANIFEST-", str(int(delta.total_seconds())), ".json"])
         else:
-            self.manifest_filename = "".join(["MANIFEST-", self.manifest["id"], ".json"])
+            self.manifest_filename = "".join(["MANIFEST-", self.manifest["_id"], ".json"])
 
         self._write_manifest()
         self._write_summary()
@@ -223,6 +224,11 @@ class ESQueryMetadata:
         summary["Manifest"] = self.manifest_filename
         return summary
 
+    def make_dir_structure(self):
+        self.logger.info("Making directory %s" % self.top_dir)
+        self.fs_handler.mkdir(self.top_dir)
+        self.fs_handler.mkdir(self.data_dir)
+        self.fs_handler.mkdir(self.metadata_dir)
 
     def update_symlinks(self, dangle=False):
         for filename in os.listdir(self.data_dir):
@@ -236,10 +242,7 @@ class ESQueryMetadata:
             self.logger.info("No links to be created")
         else:
             if not update:
-                self.logger.info("Making directory %s" % self.top_dir)
-                self.fs_handler.mkdir(self.top_dir)
-                self.fs_handler.mkdir(self.data_dir)
-                self.fs_handler.mkdir(self.metadata_dir)
+                self.make_dir_structure()
             else:
                 self.logger.info("Updating directory %s" % self.top_dir)
 
@@ -324,6 +327,12 @@ class CDBQuery:
         r = requests.get(get_url, auth=(self.username, self.password))
         return r.json()
 
+    def update_manifest(self, manifest_id, manifest):
+        update_url = "/".join([self.url, self.query_db, manifest_id])
+        headers = {"content-type" : "application/json"}
+        r = requests.put(update_url, data=json.dumps(manifest), headers=headers, auth=(self.username, self.password))
+        return r.json()
+
     def get_status_summary(self):
         return { "Status URL": "/".join([self.url, self.status_db]) }
 
@@ -331,5 +340,5 @@ class CDBQuery:
         write_url = "/".join([self.url, self.query_db])
         headers = {"content-type" : "application/json"}
         r = requests.post(write_url, data=json.dumps(manifest), headers=headers, auth=(self.username, self.password))
-        manifest["id"] = r.json()["id"]
-        return manifest["id"]
+        manifest["_id"] = r.json()["id"]
+        return manifest["_id"]

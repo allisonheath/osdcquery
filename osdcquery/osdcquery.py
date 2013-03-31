@@ -53,8 +53,8 @@ def main():
         help="update files in query directory using summary file",
         default=False)
 
-    parser.add_option("-m", "--from_manifest", action="store_true", 
-        dest="from_manifest", help="use manifest to generate symlinks",
+    parser.add_option("-a", "--from_manifest", action="store_true", 
+        dest="from_manifest", help="pull manifest from couchdb and use to update query directory",
         default=False)
 
     (options, args) = parser.parse_args()
@@ -70,7 +70,7 @@ def main():
 
     max_args = 3
     min_args = 2
-    if options.update:
+    if options.update or options.from_manifest:
         max_args = 1
         min_args = 1
 
@@ -79,21 +79,36 @@ def main():
 
     query_name = args[0]
 
+    top_dir = os.path.join(link_dir, query_name)
+
     fs_handler_class = get_class(settings.fs_handler_module_name, settings.fs_handler_class_name)
 
     fs_handler = fs_handler_class()
 
-    dirbuild_class = get_class(settings.dirbuild_module_name,
-            settings.dirbuild_class_name)
+    dirbuild_class = get_class(settings.dirbuild_module_name, settings.dirbuild_class_name)
 
-    top_dir = os.path.join(link_dir, query_name)
+    if options.from_manifest:
+        cdbq = CDBQuery(settings.cdb_url, settings.cdb_osdc, settings.cdb_query, settings.cdb_query_username,
+            settings.cdb_query_password)
+        manifest_id = args[0]
+        manifest = cdbq.get_manifest(manifest_id)
+        top_dir = os.path.expanduser(manifest["top_dir"])
+        target_dir = manifest["target_dir"]
 
-    if options.update:
+        #if fs_handler.exists(top_dir):
+        #    error_message = "In manifest Directory '%s' already exists, use -u to update" % top_dir
+        #    logger.error(error_message)
+        #    exit(1)
+
+        esq_meta = ESQueryMetadata(dirbuild_class, fs_handler, top_dir, target_dir, manifest=manifest)
+        esq_meta.create_symlinks(options.dangle)
+        esq_meta.write_metadata()
+
+    elif options.update:
         esq_meta = ESQueryMetadata(dirbuild_class, fs_handler, top_dir, target_dir)
         esq_meta.read_metadata()
         esq_meta.update_query_status_symlinks(options.dangle, settings.cdb_query_username, settings.cdb_query_password)
         esq_meta.write_metadata()
-
     else:
         if len(args) == 2:
             query_url = settings.es_url
