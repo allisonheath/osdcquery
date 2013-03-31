@@ -296,6 +296,7 @@ class CDBQuery:
         self.query_db = query_db
         self.username = username
         self.password = password
+        self.verify_ssl = False
         self.status_results = None
 
     def get_status(self, query_results):
@@ -307,7 +308,7 @@ class CDBQuery:
         bulk_url = "".join([self.url, "/", self.status_db, 
             "/_all_docs?include_docs=true"])
         headers = {"content-type" : "application/json"}
-        r = requests.post(bulk_url, data=json.dumps(keys), headers=headers)
+        r = requests.post(bulk_url, data=json.dumps(keys), headers=headers, verify=self.verify_ssl)
         rjson = r.json()
 
         self.status_results = {}
@@ -324,7 +325,14 @@ class CDBQuery:
 
     def get_manifest(self, manifest_id):
         get_url = "/".join([self.url, self.query_db, manifest_id])
-        r = requests.get(get_url, auth=(self.username, self.password))
+        r = requests.get(get_url, auth=(self.username, self.password), verify=self.verify_ssl)
+        return r.json()
+
+    def update_manifest(self, manifest_id, manifest):
+        update_url = "/".join([self.url, self.query_db, manifest_id])
+        headers = {"content-type" : "application/json"}
+        r = requests.put(update_url, data=json.dumps(manifest), headers=headers, auth=(self.username, self.password), 
+            verify=self.verify_ssl)
         return r.json()
 
     def update_manifest(self, manifest_id, manifest):
@@ -339,6 +347,7 @@ class CDBQuery:
     def register_manifest(self, manifest):
         write_url = "/".join([self.url, self.query_db])
         headers = {"content-type" : "application/json"}
-        r = requests.post(write_url, data=json.dumps(manifest), headers=headers, auth=(self.username, self.password))
+        r = requests.post(write_url, data=json.dumps(manifest), headers=headers, auth=(self.username, self.password),
+            verify=self.verify_ssl)
         manifest["_id"] = r.json()["id"]
         return manifest["_id"]
